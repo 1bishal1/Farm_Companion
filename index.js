@@ -24,6 +24,24 @@ app.use("/api/auth", authRoutes);
 app.use("/api/animals", animalRoutes);
 app.use("/api/users", userRoutes);
 
+// 404 handler for undefined routes
+app.use((req, res) => {
+  res.status(404).json({
+    error: "Route not found",
+    message: `Cannot ${req.method} ${req.path}`,
+    availableRoutes: [
+      "POST /api/auth/signup",
+      "POST /api/auth/login",
+      "POST /api/auth/update-profile",
+      "POST /api/animals/addanimal",
+      "GET /api/animals/mine",
+      "GET /api/animals/all",
+      "GET /api/animals/:animalId",
+      "POST /api/animals/:animalId/update",
+      "DELETE /api/animals/:animalId",
+    ],
+  });
+});
 
 const port = config.PORT;
 
