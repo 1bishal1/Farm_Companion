@@ -141,4 +141,167 @@ exports.getMyAnimals = async (req, res) => {
   }
 };
 
+// GET /api/animals/:animalId
+// Returns a single animal by ID (only if owned by the authenticated user)
+exports.getAnimalById = async (req, res) => {
+  try {
+    const { animalId } = req.params;
+    const userId = req.userId;
+
+    if (!animalId) {
+      return res.status(400).json({ message: "Animal ID is required" });
+    }
+
+    const animal = await Animal.findOne({ _id: animalId, owner: userId });
+
+    if (!animal) {
+      return res.status(404).json({
+        message: "Animal not found or you don't have permission to view it",
+      });
+    }
+
+    res.status(200).json({ data: animal });
+  } catch (err) {
+    console.error("Error fetching animal:", err);
+    if (err.name === "CastError") {
+      return res.status(400).json({ message: "Invalid animal ID format" });
+    }
+    res.status(500).json({
+      message: "Failed to fetch animal",
+      error: err.message,
+    });
+  }
+};
+
+// POST /api/animals/:animalId/update
+// Updates an animal entry (only if owned by the authenticated user)
+exports.updateAnimal = async (req, res) => {
+  try {
+    const { animalId } = req.params;
+    const userId = req.userId;
+    const { groupInfo, summary, singleAnimals, animalType, entryMode } = req.body;
+
+    if (!animalId) {
+      return res.status(400).json({ message: "Animal ID is required" });
+    }
+
+    // Find the animal and verify ownership
+    const animal = await Animal.findOne({ _id: animalId, owner: userId });
+
+    if (!animal) {
+      return res.status(404).json({
+        message: "Animal not found or you don't have permission to update it",
+      });
+    }
+
+    // Update fields if provided
+    if (animalType !== undefined) {
+      animal.animalType = animalType.trim();
+    }
+
+    if (entryMode !== undefined) {
+      if (!["single", "group"].includes(entryMode)) {
+        return res.status(400).json({
+          message: "entryMode must be either 'single' or 'group'",
+        });
+      }
+      animal.entryMode = entryMode;
+    }
+
+    // Update groupInfo if provided
+    if (groupInfo !== undefined) {
+      if (animal.entryMode === "group" || entryMode === "group") {
+        animal.groupInfo = {
+          numberOfAnimals: toNumber(groupInfo.numberOfAnimals),
+          purpose: groupInfo.purpose,
+          landAvailable: groupInfo.landAvailable,
+          shelterAreaSqm: toNumber(groupInfo.shelterAreaSqm),
+          waterPerDayLiters: toNumber(groupInfo.waterPerDayLiters),
+          feedingSystem: groupInfo.feedingSystem,
+          cleaningFrequency: groupInfo.cleaningFrequency,
+          monthlyCost: toNumber(groupInfo.monthlyCost),
+        };
+      }
+    }
+
+    // Update singleAnimals if provided
+    if (singleAnimals !== undefined && Array.isArray(singleAnimals)) {
+      if (animal.entryMode === "single" || entryMode === "single") {
+        animal.singleAnimals = singleAnimals.map((a, index) => ({
+          tag: a.tag || `Animal ${index + 1}`,
+          age: a.age,
+          weightKg: toNumber(a.weightKg),
+          breed: a.breed,
+          bodyCondition: a.bodyCondition,
+          photoUrl: a.photoUrl,
+          notes: a.notes,
+        }));
+      }
+    }
+
+    // Update summary if provided
+    if (summary !== undefined) {
+      animal.summary = {
+        purpose: summary.purpose,
+        monthlyCost: toNumber(summary.monthlyCost),
+        notes: summary.notes,
+      };
+    }
+
+    const updated = await animal.save();
+
+    res.status(200).json({
+      message: "Animal updated successfully",
+      data: updated,
+    });
+  } catch (err) {
+    console.error("Error updating animal:", err);
+    if (err.name === "CastError") {
+      return res.status(400).json({ message: "Invalid animal ID format" });
+    }
+    res.status(500).json({
+      message: "Failed to update animal",
+      error: err.message,
+    });
+  }
+};
+
+// DELETE /api/animals/:animalId
+// Deletes an animal entry (only if owned by the authenticated user)
+exports.deleteAnimal = async (req, res) => {
+  try {
+    const { animalId } = req.params;
+    const userId = req.userId;
+
+    if (!animalId) {
+      return res.status(400).json({ message: "Animal ID is required" });
+    }
+
+    // Find and delete the animal, ensuring ownership
+    const animal = await Animal.findOneAndDelete({
+      _id: animalId,
+      owner: userId,
+    });
+
+    if (!animal) {
+      return res.status(404).json({
+        message: "Animal not found or you don't have permission to delete it",
+      });
+    }
+
+    res.status(200).json({
+      message: "Animal deleted successfully",
+    });
+  } catch (err) {
+    console.error("Error deleting animal:", err);
+    if (err.name === "CastError") {
+      return res.status(400).json({ message: "Invalid animal ID format" });
+    }
+    res.status(500).json({
+      message: "Failed to delete animal",
+      error: err.message,
+    });
+  }
+};
+
 

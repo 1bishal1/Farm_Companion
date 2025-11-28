@@ -107,8 +107,80 @@ const loginFarmer = async (req, res) => {
   }
 };
 
+const updateProfile = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { fullName, farmName, email, phoneNumber } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Build update object with only provided fields
+    const updateData = {};
+    if (fullName !== undefined) {
+      updateData.fullName = fullName.trim();
+    }
+    if (farmName !== undefined) {
+      updateData.farmName = farmName ? farmName.trim() : undefined;
+    }
+    if (email !== undefined) {
+      const normalizedEmail = email.toLowerCase().trim();
+      // Check if email is already taken by another user
+      const existingUser = await User.findOne({
+        email: normalizedEmail,
+        _id: { $ne: userId },
+      });
+      if (existingUser) {
+        return res.status(409).json({ error: "Email already in use" });
+      }
+      updateData.email = normalizedEmail;
+    }
+    if (phoneNumber !== undefined) {
+      const trimmedPhone = phoneNumber.trim();
+      // Check if phone number is already taken by another user
+      const existingUser = await User.findOne({
+        phoneNumber: trimmedPhone,
+        _id: { $ne: userId },
+      });
+      if (existingUser) {
+        return res.status(409).json({ error: "Phone number already in use" });
+      }
+      updateData.phoneNumber = trimmedPhone;
+    }
+
+    // Update the user
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      message: "Profile updated successfully",
+      user: sanitizeUser(updatedUser),
+    });
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        error: "Validation error",
+        details: error.message,
+      });
+    }
+    res.status(500).json({ error: "Server error. Please try again later." });
+  }
+};
+
 module.exports = {
   registerFarmer,
   loginFarmer,
+  updateProfile,
 };
 
